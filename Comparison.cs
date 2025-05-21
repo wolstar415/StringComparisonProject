@@ -28,8 +28,8 @@ public readonly struct Comparison
 
         if (_reference.IsInteger && input.IsInteger)
         {
-            int a = input.Int;
-            int b = _reference.Int;
+            int a = input.AsInt();
+            int b = _reference.AsInt();
 
             return _op switch
             {
