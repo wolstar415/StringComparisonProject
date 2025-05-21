@@ -32,6 +32,17 @@ public readonly struct FlexibleValue
         Text = s;
     }
 
+    public int AsInt()
+    {
+        return Type switch
+        {
+            ValueType.Integer or ValueType.Boolean => Int,
+            ValueType.Float => (int)Float,
+            ValueType.String => int.TryParse(Text, out var i) ? i : 0,
+            _ => 0
+        };
+    }
+
     public float AsFloat() => Type switch
     {
         ValueType.Float => Float,
@@ -39,6 +50,16 @@ public readonly struct FlexibleValue
         ValueType.String => float.TryParse(Text, out var f) ? f : 0f,
         _ => 0f
     };
+
+    public bool AsBool()
+    {
+        return Type switch
+        {
+            ValueType.Boolean or ValueType.Integer => Int != 0,
+            ValueType.String => !string.IsNullOrWhiteSpace(Text) && Text != "0" && !Text.Equals("false", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
 
     public override string ToString() => Type switch
     {
