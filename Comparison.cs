@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 public enum CompareOp
 {
@@ -7,7 +8,9 @@ public enum CompareOp
     Greater,
     GreaterEqual,
     Equal,
-    NotEqual
+    NotEqual,
+    ModuloEqual,
+    RemainderEqual
 }
 
 public readonly struct Comparison
@@ -15,14 +18,44 @@ public readonly struct Comparison
     private readonly CompareOp _op;
     private readonly FlexibleValue _reference;
 
+    private readonly bool _isRange;
+    private readonly FlexibleValue _minValue;
+    private readonly FlexibleValue _maxValue;
+    private readonly CompareOp _minOp;
+    private readonly CompareOp _maxOp;
+
     public Comparison(CompareOp op, FlexibleValue reference)
     {
         _op = op;
         _reference = reference;
+
+        _isRange = false;
+        _minValue = default;
+        _maxValue = default;
+        _minOp = default;
+        _maxOp = default;
+    }
+
+    private Comparison(FlexibleValue minValue, CompareOp minOp, FlexibleValue maxValue, CompareOp maxOp)
+    {
+        _isRange = true;
+        _minValue = minValue;
+        _maxValue = maxValue;
+        _minOp = minOp;
+        _maxOp = maxOp;
+
+        _op = default;
+        _reference = default;
     }
 
     public bool Check(FlexibleValue input)
     {
+        if (_isRange)
+        {
+            var v = input.AsFloat();
+            return FastCompare(_minOp, v, _minValue.AsFloat()) && FastCompare(_maxOp, v, _maxValue.AsFloat());
+        }
+
         if (!_reference.IsValid || !input.IsValid)
             return false;
 
@@ -39,57 +72,48 @@ public readonly struct Comparison
                 CompareOp.LessEqual => a <= b,
                 CompareOp.Greater => a > b,
                 CompareOp.GreaterEqual => a >= b,
+                CompareOp.ModuloEqual => (a / b) == b,
+                CompareOp.RemainderEqual => (a % b) == b,
                 _ => false
             };
         }
 
-        if (_reference.IsNumber && input.IsNumber)
+        var x = input.AsFloat();
+        var y = _reference.AsFloat();
+
+        return _op switch
         {
-            float a = input.AsFloat();
-            float b = _reference.AsFloat();
-
-            return _op switch
-            {
-                CompareOp.Equal => AreFloatsEqual(a, b),
-                CompareOp.NotEqual => !AreFloatsEqual(a, b),
-                CompareOp.Less => a < b,
-                CompareOp.LessEqual => a <= b || AreFloatsEqual(a, b),
-                CompareOp.Greater => a > b,
-                CompareOp.GreaterEqual => a >= b || AreFloatsEqual(a, b),
-                _ => false
-            };
-        }
-
-        if (_reference.IsString && input.IsString)
-        {
-            string a = input.Text;
-            string b = _reference.Text;
-
-            return _op switch
-            {
-                CompareOp.Equal => string.Equals(a, b, StringComparison.OrdinalIgnoreCase),
-                CompareOp.NotEqual => !string.Equals(a, b, StringComparison.OrdinalIgnoreCase),
-                _ => false
-            };
-        }
-
-        return input.EqualsTo(in _reference);
+            CompareOp.Less => x < y,
+            CompareOp.LessEqual => x <= y,
+            CompareOp.Greater => x > y,
+            CompareOp.GreaterEqual => x >= y,
+            CompareOp.Equal => AreFloatsEqual(x, y),
+            CompareOp.NotEqual => !AreFloatsEqual(x, y),
+            CompareOp.ModuloEqual => AreFloatsEqual(MathF.Floor(x / y), y),
+            CompareOp.RemainderEqual => AreFloatsEqual(x % y, y),
+            _ => false
+        };
     }
 
-    public override string ToString()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool FastCompare(CompareOp op, float a, float b)
     {
-        string opStr = _op switch
+        return op switch
         {
-            CompareOp.Less => "<",
-            CompareOp.LessEqual => "<=",
-            CompareOp.Greater => ">",
-            CompareOp.GreaterEqual => ">=",
-            CompareOp.Equal => "==",
-            CompareOp.NotEqual => "!=",
-            _ => "?"
+            CompareOp.Less => a < b,
+            CompareOp.LessEqual => a <= b,
+            CompareOp.Greater => a > b,
+            CompareOp.GreaterEqual => a >= b,
+            CompareOp.Equal => AreFloatsEqual(a, b),
+            CompareOp.NotEqual => !AreFloatsEqual(a, b),
+            _ => false
         };
+    }
 
-        return $"{opStr}{_reference}";
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool AreFloatsEqual(float a, float b)
+    {
+        return Math.Abs(a - b) < 0.00001f;
     }
 
     public static Comparison Parse(string expr)
@@ -99,27 +123,52 @@ public readonly struct Comparison
 
         expr = expr.Trim();
 
-        if (expr.Length >= 2 && expr[0] == '!' && expr[1] != '=')
+        if (expr.Contains("x", StringComparison.OrdinalIgnoreCase))
         {
-            var raw = expr[1..].Trim();
-            return new Comparison(CompareOp.NotEqual, FlexibleValue.Parse(raw));
+            var parts = expr.Split(new[] { 'x', 'X' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2)
+            {
+                var left = ParsePart(parts[0].Trim(), true);
+                var right = ParsePart(parts[1].Trim(), false);
+                return new Comparison(left.Item1, left.Item2, right.Item1, right.Item2);
+            }
         }
 
         foreach (var (symbol, op) in _operators)
         {
-            if (expr.StartsWith(symbol, StringComparison.Ordinal))
+            if (expr.StartsWith(symbol))
             {
                 var valueStr = expr[symbol.Length..].Trim();
                 return new Comparison(op, FlexibleValue.Parse(valueStr));
             }
         }
 
+        if (expr.StartsWith("!"))
+        {
+            var valStr = expr[1..].Trim();
+            return new Comparison(CompareOp.NotEqual, FlexibleValue.Parse(valStr));
+        }
+
         return new Comparison(CompareOp.Equal, FlexibleValue.Parse(expr));
     }
 
-    private static bool AreFloatsEqual(float a, float b)
+    private static (FlexibleValue, CompareOp) ParsePart(string part, bool isLeft)
     {
-        return Math.Abs(a - b) < 0.00001f;
+        foreach (var (symbol, op) in _operators)
+        {
+            if (isLeft && part.EndsWith(symbol))
+            {
+                var num = part[..^symbol.Length].Trim();
+                return (FlexibleValue.Parse(num), op);
+            }
+            else if (!isLeft && part.StartsWith(symbol))
+            {
+                var num = part[symbol.Length..].Trim();
+                return (FlexibleValue.Parse(num), op);
+            }
+        }
+
+        return (FlexibleValue.Parse(part), CompareOp.Equal);
     }
 
     private static readonly (string, CompareOp)[] _operators = new[]
@@ -130,5 +179,7 @@ public readonly struct Comparison
         (">", CompareOp.Greater),
         ("==", CompareOp.Equal),
         ("!=", CompareOp.NotEqual),
+        ("%=", CompareOp.ModuloEqual),
+        ("/=" , CompareOp.RemainderEqual),
     };
 }
