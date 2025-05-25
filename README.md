@@ -2,12 +2,12 @@
 
 ----------------
 
-public enum UnitType
-{
-    Normal,
-    Elite,
-    Boss
-}
+    public enum UnitType
+    {
+        Normal,
+        Elite,
+        Boss
+    }
 
 
 
