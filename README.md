@@ -1,4 +1,7 @@
 # StringComparisonProject
+
+
+
 public enum UnitType
 {
     Normal,
