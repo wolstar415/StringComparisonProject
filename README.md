@@ -1,4 +1,11 @@
 # StringComparisonProject
+public enum UnitType
+{
+    Normal,
+    Elite,
+    Boss
+}
+
 
 
         // Numeric comparisons
@@ -104,4 +111,34 @@
         var cmp22 = Comparison.Parse(">10");
         FlexibleValue noneValue = FlexibleValue.None;
         Debug.Log($"None > 10 ? {cmp22.Check(noneValue)}");      // ❌ false
+
+        // Enum comparisons (FlexibleValue stores as string)
+        var cmp23 = Comparison.Parse("Normal");
+        UnitType unit1 = UnitType.Normal;
+        Debug.Log($"UnitType.Normal == Normal ? {cmp23.Check(unit1)}");        // ✅ true
+        
+        var cmp24 = Comparison.Parse("Boss");
+        UnitType unit2 = UnitType.Boss;
+        Debug.Log($"UnitType.Boss == Boss ? {cmp24.Check(unit2)}");           // ✅ true
+        
+        var cmp25 = Comparison.Parse("Elite");
+        UnitType unit3 = UnitType.Elite;
+        Debug.Log($"UnitType.Elite == Elite ? {cmp25.Check(unit3)}");         // ✅ true
+        
+        var cmp26 = Comparison.Parse("!=Boss");
+        UnitType unit4 = UnitType.Elite;
+        Debug.Log($"UnitType.Elite != Boss ? {cmp26.Check(unit4)}");          // ✅ true
+        
+        var cmp27 = Comparison.Parse("Normal");
+        UnitType unit5 = UnitType.Boss;
+        Debug.Log($"UnitType.Boss == Normal ? {cmp27.Check(unit5)}");         // ❌ false
+        
+        var cmp28 = Comparison.Parse("!=Normal");
+        UnitType unit6 = UnitType.Normal;
+        Debug.Log($"UnitType.Normal != Normal ? {cmp28.Check(unit6)}");       // ❌ false
+        
+        // Case-insensitive comparison
+        var cmp29 = Comparison.Parse("boss");
+        UnitType unit7 = UnitType.Boss;
+        Debug.Log($"UnitType.Boss == boss ? {cmp29.Check(unit7)}");           // ✅ true
 
